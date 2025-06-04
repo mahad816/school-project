@@ -6,4 +6,5 @@ A simple role-based application for students, teachers, and parents.
 - Backend: FastAPI (Python)  
 - Database: SQLite (or PostgreSQL)  
 - Authentication: JWT  
+hello
 
