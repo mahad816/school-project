@@ -7,4 +7,5 @@ A simple role-based application for students, teachers, and parents.
 - Database: SQLite (or PostgreSQL)  
 - Authentication: JWT  
 hello
+hi from abdullah
 
