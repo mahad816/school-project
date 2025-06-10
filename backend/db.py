@@ -1,11 +1,10 @@
 # backend/db.py
-import models
-from sqlmodel import SQLModel
+from .models import SQLModel
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 # Use SQLite for development
-DATABASE_URL = "sqlite+aiosqlite:///./school.db"
+DATABASE_URL = "sqlite+aiosqlite:///school.db"
 
 # Create an async engine
 engine = create_async_engine(
