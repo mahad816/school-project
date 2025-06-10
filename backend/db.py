@@ -2,6 +2,7 @@
 from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+from typing import AsyncGenerator
 
 # Use SQLite for development
 DATABASE_URL = "sqlite+aiosqlite:///school.db"
@@ -15,7 +16,7 @@ async_session = sessionmaker(
 )
 
 # Dependency for getting a session
-async def get_session() -> AsyncSession:
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
         yield session
 

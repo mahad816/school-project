@@ -3,6 +3,10 @@ from sqlmodel import SQLModel
 from .db import engine
 from .routes.auth import router as auth_router
 from .routes.classes import router as classes_router
+from .routes.students import router as students_router
+from .routes.assignments import router as assignments_router
+from .routes.timetable import router as timetable_router
+from .routes.grades import router as grades_router
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
@@ -24,6 +28,15 @@ app.add_middleware(
 # Include routers
 app.include_router(auth_router)
 app.include_router(classes_router)
+app.include_router(students_router, prefix="/students", tags=["students"])
+
+# Include new routers with prefixes and tags
+for router, prefix, tag in [
+    (assignments_router, "/assignments", "assignments"),
+    (timetable_router, "/timetable", "timetable"),
+    (grades_router, "/grades", "grades")
+]:
+    app.include_router(router, prefix=prefix, tags=[tag])
 
 @app.on_event("startup")
 async def on_startup():
