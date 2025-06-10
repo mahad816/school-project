@@ -8,10 +8,15 @@ from typing import Literal
 
 from passlib.hash import bcrypt
 from jose import JWTError, jwt
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
+from models import User
+from db import get_session
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-me-in-.env")
+# Use a consistent secret key for development
+SECRET_KEY = "your-super-secret-key-for-development-only"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -29,16 +34,6 @@ class Token(BaseModel):
     token_type: str
 
 security = HTTPBearer()
-
-# Simulated DB fetch (replace with real DB logic)
-def get_user_by_username(username: str):
-    # TODO: Replace with real DB lookup
-    # Example user for demonstration
-    if username == "stu1":
-        return {"username": "stu1", "role": "student"}
-    if username == "teach1":
-        return {"username": "teach1", "role": "teacher"}
-    return None
 
 def get_password_hash(password: str) -> str:
     return bcrypt.hash(password)
@@ -58,55 +53,74 @@ def decode_access_token(token: str) -> dict:
     except JWTError:
         return {}
 
+async def get_user_by_username(username: str, session: AsyncSession) -> User:
+    result = await session.execute(select(User).where(User.username == username))
+    return result.scalar_one_or_none()
+
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    session: AsyncSession = Depends(get_session)
 ):
     token = credentials.credentials
     try:
         payload = decode_access_token(token)
         username = payload.get("sub")
-        role = payload.get("role")  # If you store role in token
         if not username:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-        user = get_user_by_username(username)
+        user = await get_user_by_username(username, session)
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
         return user
     except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-def require_student(user: dict = Depends(get_current_user)):
-    if user["role"] != "student":
+def require_student(user: User = Depends(get_current_user)):
+    if user.role != "student":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Student access required")
     return user
 
-def require_teacher(user: dict = Depends(get_current_user)):
-    if user["role"] != "teacher":
+def require_teacher(user: User = Depends(get_current_user)):
+    if user.role != "teacher":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Teacher access required")
     return user
 
 @router.post("/signup")
-async def signup(user: UserCreate):
-    # Here you would typically save the user to your database
+async def signup(user: UserCreate, session: AsyncSession = Depends(get_session)):
+    # Check if username already exists
+    existing = await get_user_by_username(user.username, session)
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already exists")
     hashed_password = get_password_hash(user.password)
-    # Save user to database (implement this)
+    db_user = User(username=user.username, hashed_password=hashed_password, role=user.role)
+    session.add(db_user)
+    await session.commit()
+    await session.refresh(db_user)
     return {
         "message": "User created successfully",
-        "username": user.username,
-        "role": user.role
+        "username": db_user.username,
+        "role": db_user.role
     }
 
 @router.post("/login", response_model=Token)
-async def login(user: UserLogin):
-    # Here you would typically verify the user against your database
-    # For now, we'll just create a token
-    access_token = create_access_token(data={"sub": user.username})
+async def login(user: UserLogin, session: AsyncSession = Depends(get_session)):
+    db_user = await get_user_by_username(user.username, session)
+    if not db_user or not verify_password(user.password, db_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
+    access_token = create_access_token(
+        data={
+            "sub": db_user.username,
+            "role": db_user.role
+        }
+    )
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/student-area")
 async def student_area(user=Depends(require_student)):
-    return {"message": f"Welcome, {user['username']} (student)!"}
+    return {"message": f"Welcome, {user.username} (student)!"}
 
 @router.get("/teacher-area")
 async def teacher_area(user=Depends(require_teacher)):
-    return {"message": f"Welcome, {user['username']} (teacher)!"}
+    return {"message": f"Welcome, {user.username} (teacher)!"}
