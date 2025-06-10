@@ -2,12 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
 import secrets
 from typing import List
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Class
-from database import get_session
+from ..models import Class
+from ..db import get_session
 from routes.auth import require_teacher
 
 router = APIRouter(prefix="/classes", tags=["classes"])
+
+@router.get("/", response_model=List[Class])
+async def get_classes(session: AsyncSession = Depends(get_session)):
+    result = await session.execute(select(Class))
+    return result.scalars().all()
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_class(

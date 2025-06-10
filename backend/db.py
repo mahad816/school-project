@@ -1,5 +1,5 @@
 # backend/db.py
-from .models import SQLModel
+from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
@@ -7,20 +7,18 @@ from sqlalchemy.orm import sessionmaker
 DATABASE_URL = "sqlite+aiosqlite:///school.db"
 
 # Create an async engine
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=True,
-    future=True
-)
+engine = create_async_engine(DATABASE_URL, echo=True)
 
 # Create a session factory
-AsyncSessionLocal = sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False
+async_session = sessionmaker(
+    engine, class_=AsyncSession, expire_on_commit=False
 )
 
 # Dependency for getting a session
-async def get_session():
-    async with AsyncSessionLocal() as session:
+async def get_session() -> AsyncSession:
+    async with async_session() as session:
         yield session
+
+async def init_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
